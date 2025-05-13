@@ -1,0 +1,166 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AddressType {
+  BILLING
+  SHIPPING
+}
+
+enum OrderStatus {
+  OPEN
+  DELIVERED
+  CANCELLED
+  REFUNDED
+  PAID
+  PENDING
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  roleId    Int
+  firstName String    @db.VarChar(255)
+  lastName  String    @db.VarChar(255)
+  email     String    @unique @db.VarChar(255)
+  password  String    @db.VarChar(255)
+  status    Status    @default(ACTIVE)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  address   Address[]
+  orders    Order[]
+}
+
+model ShopifyCategory {
+  id                Int       @id @default(autoincrement())
+  shopifyCategoryId Int       @unique
+  name              String    @db.VarChar(255)
+  parentId          Int
+  status            Status    @default(ACTIVE)
+  products          Product[]
+}
+
+model EbayCategory {
+  id             Int           @id @default(autoincrement())
+  ebayCategoryId Int
+  name           String        @db.VarChar(255)
+  parentId       Int
+  status         Status        @default(ACTIVE)
+  products       SyncProduct[]
+}
+
+model Product {
+  id                  Int             @id @default(autoincrement())
+  shopifyProductId    Int
+  title               String          @db.VarChar(255)
+  description         String
+  sku                 String          @db.VarChar(255)
+  shopifyPrice        Decimal         @db.Decimal(10, 2)
+  shopifyComparePrice Decimal         @db.Decimal(10, 2)
+  stock               Int
+  status              ProductStatus   @default(ACTIVE)
+  categoryId          Int
+  productOptions      Json?
+  category            ShopifyCategory @relation(fields: [categoryId], references: [id])
+  brand               String?         @db.VarChar(255)
+  mpn                 String?         @db.VarChar(255)
+  isbn                String?         @db.VarChar(255)
+  ean                 String?         @db.VarChar(255)
+  package             Json?
+  orderItems          OrderItem[]
+  productImages       ProductImage[]
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+}
+
+model ProductImage {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  imageUrl  String
+  position  Int
+  isDefault Boolean @default(false)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model SyncProduct {
+  id               Int           @id @default(autoincrement())
+  productId        Int
+  sku              String        @db.VarChar(255)
+  ebayPrice        Decimal       @db.Decimal(10, 2)
+  ebayComparePrice Decimal       @db.Decimal(10, 2)
+  stock            Int
+  status           ProductStatus @default(ACTIVE)
+  categoryId       Int
+
+  category EbayCategory @relation(fields: [categoryId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id          Int         @id @default(autoincrement())
+  userId      Int
+  ebayOrderId Int
+  status      OrderStatus @default(OPEN)
+  totalAmount Decimal     @db.Decimal(10, 2)
+  paymentId   String?
+  billingId   Int
+  shippingId  Int
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  orderItems  OrderItem[]
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  billing     Address     @relation("BillingAddress", fields: [billingId], references: [id])
+  shipping    Address     @relation("ShippingAddress", fields: [shippingId], references: [id])
+}
+
+model OrderItem {
+  id              Int     @id @default(autoincrement())
+  orderId         Int
+  productId       Int
+  price           Decimal @db.Decimal(10, 2)
+  quantity        Int
+  totalPrice      Decimal @db.Decimal(10, 2)
+  productVariants Json?
+
+  product Product @relation(fields: [productId], references: [id])
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Address {
+  id             Int         @id @default(autoincrement())
+  userId         Int
+  type           AddressType @default(BILLING)
+  addressLine1   String
+  addressLine2   String?
+  city           String
+  county         String?
+  zipCode        String
+  state          String
+  country        String
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  billingOrders  Order[]     @relation("BillingAddress")
+  shippingOrders Order[]     @relation("ShippingAddress")
+}
